@@ -12,14 +12,17 @@ final class Caixa: @unchecked Sendable {
     let ambiente: Ambiente
     let diario: Diario
     private let marcador: Marcador
+    private let espelho: Espelho?
     private let fila = DispatchQueue(label: "caixa-preta")
     // Daqui para baixo, só na fila.
     private var marca: MarcaDoUso
     private var pulso: DispatchSourceTimer?
     private var limiteAvisado: Set<String> = []
+    private var semICloudAvisado = false
 
-    init(pasta: URL, ambiente: Ambiente, calendario: Calendar = .current, limiteDoDia: Int = 5_000_000) {
+    init(pasta: URL, ambiente: Ambiente, espelho: Espelho? = nil, calendario: Calendar = .current, limiteDoDia: Int = 5_000_000) {
         self.ambiente = ambiente
+        self.espelho = espelho
         diario = Diario(pasta: pasta, calendario: calendario, limiteDoDia: limiteDoDia)
         marcador = Marcador(arquivo: pasta.appending(path: "uso-atual.json"))
         uso = Self.codigoNovo()
@@ -145,9 +148,49 @@ final class Caixa: @unchecked Sendable {
         }
     }
 
-    /// Espera a fila terminar o que já recebeu. Para os testes.
+    /// Espera a fila e a cópia terminarem o que já receberam. Para os testes.
     func esperar() {
         fila.sync {}
+        espelho?.esperar()
+        fila.sync {}
+    }
+
+    /// Junta os últimos 3 dias e os relatórios deles num arquivo só, para
+    /// mandar por AirDrop, Mail ou Mensagens.
+    func arquivoParaEnviar() async -> URL? {
+        await withCheckedContinuation { continuacao in
+            fila.async { [self] in continuacao.resume(returning: montarArquivo()) }
+        }
+    }
+
+    private func montarArquivo() -> URL? {
+        let calendario = diario.calendario
+        let agora = ambiente.agora()
+        let dias = (0..<3).reversed()
+            .compactMap { calendario.date(byAdding: .day, value: -$0, to: agora) }
+            .map { Dia.nome($0, calendario: calendario) }
+        guard let primeiro = dias.first, let ultimo = dias.last else { return nil }
+        var dados = Data()
+        for dia in dias {
+            dados.append((try? Data(contentsOf: diario.arquivo(doDia: dia))) ?? Data())
+        }
+        let relatorios = ((try? FileManager.default.contentsOfDirectory(atPath: diario.pastaDosRelatorios.path)) ?? []).sorted()
+        for nome in relatorios where nome.hasSuffix(".json") && nome.prefix(10) >= primeiro {
+            guard let json = try? Data(contentsOf: diario.pastaDosRelatorios.appending(path: nome)),
+                  let objeto = try? JSONSerialization.jsonObject(with: json),
+                  let linha = try? JSONSerialization.data(withJSONObject: ["diagnostico": String(nome.dropLast(5)), "json": objeto])
+            else { continue }
+            dados.append(linha)
+            dados.append(0x0A)
+        }
+        let destino = FileManager.default.temporaryDirectory
+            .appending(path: "CaixaPreta-\(ambiente.app)-\(aparelho)-\(ambiente.modelo)-\(ultimo).jsonl")
+        do {
+            try dados.write(to: destino, options: .atomic)
+        } catch {
+            return nil
+        }
+        return destino
     }
 
     // MARK: - Na fila
@@ -163,9 +206,29 @@ final class Caixa: @unchecked Sendable {
         marcador.gravar(marca)
     }
 
-    /// Copia para o iCloud e chama `depois` no fim da cópia.
+    /// Copia para o iCloud e chama `depois` no fim da cópia. Sem iCloud,
+    /// anota `caixa.sem_icloud` uma vez por uso.
     private func espelharNaFila(depois: (@Sendable () -> Void)?) {
-        depois?()
+        guard let espelho else {
+            depois?()
+            return
+        }
+        let agora = ambiente.agora()
+        espelho.copiar(
+            dias: diario.tirarDiasParaCopiar(),
+            relatorios: diario.pastaDosRelatorios,
+            para: "\(aparelho)-\(ambiente.modelo)",
+            apagarAntesDe: diario.primeiroDiaGuardado(hoje: agora)
+        ) { [self] haICloud in
+            if !haICloud {
+                fila.async { [self] in
+                    guard !semICloudAvisado else { return }
+                    semICloudAvisado = true
+                    gravar("caixa.sem_icloud", [:], hora: ambiente.agora())
+                }
+            }
+            depois?()
+        }
     }
 
     private func ligarPulso(_ intervalo: TimeInterval) {

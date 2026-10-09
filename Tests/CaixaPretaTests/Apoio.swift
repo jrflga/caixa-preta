@@ -7,13 +7,14 @@ func caixaDeTeste(
     pasta: URL = pastaTemporaria(),
     relogio: Relogio = Relogio(hora("2026-10-09T12:00:00-03:00")),
     memoria: Compartilhado<Int> = Compartilhado(300),
+    espelho: Espelho? = nil,
     limiteDoDia: Int = 5_000_000
 ) -> Caixa {
     let ambiente = Ambiente(
         app: "Exemplo", versao: "1.0", build: "7", ios: "27.0", modelo: "iPhone15,4",
         agora: { relogio.agora }, memoriaEmMB: { memoria.valor }
     )
-    let caixa = Caixa(pasta: pasta, ambiente: ambiente, calendario: calendarioDosTestes, limiteDoDia: limiteDoDia)
+    let caixa = Caixa(pasta: pasta, ambiente: ambiente, espelho: espelho, calendario: calendarioDosTestes, limiteDoDia: limiteDoDia)
     caixa.comecar(intervaloDoPulso: nil)
     return caixa
 }

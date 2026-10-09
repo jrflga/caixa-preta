@@ -14,6 +14,13 @@ public enum CaixaPreta {
         Captura.atual?.receber(evento)
     }
 
+    /// Os últimos 3 dias num arquivo só, para um botão "Enviar diagnóstico"
+    /// (`ShareLink`). Serve para quem usa o app com outra conta do iCloud.
+    /// `nil` se a caixa não foi ligada.
+    public static func arquivoParaEnviar() async -> URL? {
+        await ligada.atual?.arquivoParaEnviar()
+    }
+
     /// Roda `corpo` e devolve o que ele anotou, já passado pelo filtro. Só vê
     /// o que roda nesta tarefa e nas filhas: testes em paralelo não se
     /// misturam.
