@@ -148,6 +148,11 @@ final class Caixa: @unchecked Sendable {
         }
     }
 
+    /// O tempo da tarefa de fundo acabou: para a cópia para o iCloud.
+    func pararCopia() {
+        espelho?.cancelar()
+    }
+
     /// Espera a fila e a cópia terminarem o que já receberam. Para os testes.
     func esperar() {
         fila.sync {}

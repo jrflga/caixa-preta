@@ -32,7 +32,7 @@ final class Ligacao: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
             centro.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated {
                     // A cópia para o iCloud termina mesmo que o iOS suspenda o app.
-                    let tarefa = TarefaDeFundo()
+                    let tarefa = TarefaDeFundo { caixa.pararCopia() }
                     caixa.mudouDeEstado("fundo") {
                         Task { @MainActor in tarefa.terminar() }
                     }
@@ -64,8 +64,11 @@ final class Ligacao: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
 final class TarefaDeFundo {
     private var id = UIBackgroundTaskIdentifier.invalid
 
-    init() {
+    /// `aoExpirar` roda quando o iOS avisa que o tempo acabou, antes de a
+    /// tarefa terminar.
+    init(aoExpirar: @escaping @MainActor @Sendable () -> Void) {
         id = UIApplication.shared.beginBackgroundTask(withName: "CaixaPreta") { [weak self] in
+            aoExpirar()
             self?.terminar()
         }
     }

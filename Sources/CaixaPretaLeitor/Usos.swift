@@ -31,12 +31,20 @@ public struct Uso {
     public var memoriaNoFim: Int?
     public var picoNoFim: Int?
     public var duracaoNoFim: Int?
+    /// Quando a abertura seguinte contou como este uso terminou.
+    public var fimContadoEm: Date?
 
     /// A memória mais alta vista no uso, em MB. A `sessao.anterior` gravada
     /// neste uso traz a memória do uso de antes: não conta.
     public var picoMB: Int? {
         let medidas = eventos.filter { $0.nome != "sessao.anterior" }.compactMap { $0.campos["memoria_mb"]?.inteiro }
         return (medidas + [memoriaNoFim, picoNoFim].compactMap { $0 }).max()
+    }
+
+    /// O último sinal do uso, contando o que chegou depois dele: a abertura
+    /// seguinte que contou como ele terminou e as falhas do iOS.
+    public var ultimoSinal: Date {
+        ([terminou] + [fimContadoEm].compactMap { $0 } + falhas.map(\.hora)).max() ?? terminou
     }
 
     /// Até quando há sinal do uso.
@@ -69,6 +77,7 @@ public enum Usos {
             usos[id]?.memoriaNoFim = evento.campos["memoria_mb"]?.inteiro
             usos[id]?.picoNoFim = evento.campos["pico_mb"]?.inteiro
             usos[id]?.duracaoNoFim = evento.campos["duracao_s"]?.inteiro
+            usos[id]?.fimContadoEm = evento.hora
         }
         let ordem = usos.values.sorted { $0.comecou < $1.comecou }.map(\.id)
         for falha in eventos where falha.nome == "ios.falha" {

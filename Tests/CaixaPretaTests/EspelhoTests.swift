@@ -35,6 +35,35 @@ struct EspelhoTests {
         #expect(copiadoAntesDoFim.valor == true)
     }
 
+    @Test("cancelada a cópia (fim da tarefa de fundo), nada mais vai para o iCloud; a cópia seguinte vale")
+    func cancelada() throws {
+        let icloud = pastaTemporaria()
+        let origem = pastaTemporaria()
+        let dia = origem.appending(path: "2026-10-09.jsonl")
+        try Data("linha\n".utf8).write(to: dia)
+        let relatorios = origem.appending(path: "diagnosticos", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: relatorios, withIntermediateDirectories: true)
+        let liberar = DispatchSemaphore(value: 0)
+        let espelho = Espelho(acharRaiz: {
+            liberar.wait()
+            return icloud
+        })
+        let terminou = Compartilhado(false)
+        espelho.copiar(dias: [dia], relatorios: relatorios, para: "abcd1234-iPhone15,4", apagarAntesDe: "2026-09-26") { _ in
+            terminou.valor = true
+        }
+        // O iOS avisa que o tempo acabou enquanto a cópia ainda procura o iCloud.
+        espelho.cancelar()
+        liberar.signal()
+        espelho.esperar()
+        let copiado = icloud.appending(path: "Documents/CaixaPreta/abcd1234-iPhone15,4/2026-10-09.jsonl")
+        #expect(terminou.valor)
+        #expect(!FileManager.default.fileExists(atPath: copiado.path))
+        espelho.copiar(dias: [dia], relatorios: relatorios, para: "abcd1234-iPhone15,4", apagarAntesDe: "2026-09-26") { _ in }
+        espelho.esperar()
+        #expect(FileManager.default.fileExists(atPath: copiado.path))
+    }
+
     @Test("sem iCloud, tudo fica no aparelho e caixa.sem_icloud entra uma vez")
     func semICloud() {
         let pasta = pastaTemporaria()
