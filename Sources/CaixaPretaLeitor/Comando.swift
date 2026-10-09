@@ -51,12 +51,18 @@ public enum Comando {
         var calendario = Calendar(identifier: .gregorian)
         calendario.timeZone = contexto.fuso
         var fontes: [(titulo: String, registros: Registros)] = []
+        var desde = Date.distantPast
         if let arquivo = opcoes["--arquivo"] {
             let url = URL(filePath: arquivo)
             fontes = [(titulo: url.lastPathComponent, registros: Leitura.ler(arquivoEnviado: url))]
         } else {
             let quantos = max(opcoes.inteiro("--dias") ?? 1, 1)
-            let dias = Set((0..<quantos)
+            // O resumo lê um dia a mais: o uso que fecha de um dia para o outro
+            // só é contado na abertura seguinte.
+            let lidos = subcomando == "resumo" ? quantos + 1 : quantos
+            let primeiro = calendario.date(byAdding: .day, value: -(quantos - 1), to: contexto.agora) ?? contexto.agora
+            desde = calendario.startOfDay(for: primeiro)
+            let dias = Set((0..<lidos)
                 .compactMap { calendario.date(byAdding: .day, value: -$0, to: contexto.agora) }
                 .map { Dia.nome($0, calendario: calendario) })
             let pastas = Localizador.pastas(doApp: app, raiz: contexto.raiz, baixar: contexto.baixar)
@@ -69,7 +75,9 @@ public enum Comando {
         if subcomando == "resumo" {
             let simbolizador = Simbolizador(pastas: pastasDeSimbolos(opcoes, contexto), rodar: contexto.rodar)
             for fonte in fontes {
-                escrever(Resumo.texto(titulo: fonte.titulo, registros: fonte.registros, simbolizador: simbolizador, fuso: contexto.fuso))
+                escrever(Resumo.texto(
+                    titulo: fonte.titulo, registros: fonte.registros, simbolizador: simbolizador, fuso: contexto.fuso, desde: desde
+                ))
             }
         } else {
             let formato = Formato(fuso: contexto.fuso)

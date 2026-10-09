@@ -4,16 +4,24 @@ import Foundation
 /// O texto do comando `resumo`: cada uso do app, como terminou, a memória,
 /// os problemas, as falhas com a pilha e os últimos passos.
 public enum Resumo {
-    public static func texto(titulo: String, registros: Registros, simbolizador: Simbolizador?, fuso: TimeZone = .current) -> String {
+    /// `desde`: só entram os usos com sinal a partir daí. Os registros podem
+    /// trazer um dia a mais, para contar como terminou o uso da virada.
+    public static func texto(
+        titulo: String,
+        registros: Registros,
+        simbolizador: Simbolizador?,
+        fuso: TimeZone = .current,
+        desde: Date = .distantPast
+    ) -> String {
         let formato = Formato(fuso: fuso)
-        let usos = Usos.montar(registros.eventos)
+        let usos = Usos.montar(registros.eventos).filter { $0.ultimoSinal >= desde }
         var linhas = [titulo]
         if usos.isEmpty { linhas += ["", "Nenhum uso no período."] }
         for uso in usos {
             linhas.append("")
             linhas += bloco(uso, registros: registros, simbolizador: simbolizador, formato: formato)
         }
-        if let fechamentos = registros.eventos.last(where: { $0.nome == "ios.fechamentos" }) {
+        if let fechamentos = registros.eventos.last(where: { $0.nome == "ios.fechamentos" && $0.hora >= desde }) {
             linhas += ["", textoDosFechamentos(fechamentos.campos, formato: formato)]
         }
         return linhas.joined(separator: "\n") + "\n"
