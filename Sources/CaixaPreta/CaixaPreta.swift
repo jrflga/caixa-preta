@@ -6,6 +6,29 @@ import Foundation
 public enum CaixaPreta {
     static let ligada = Guardado<Caixa?>(nil)
 
+    /// Liga a caixa. Chame uma vez, na abertura do app, antes de tudo; as
+    /// chamadas seguintes não fazem nada.
+    /// - Parameters:
+    ///   - app: o nome do app, pelo qual o comando do Mac acha a pasta.
+    ///   - containerDoICloud: o container com pasta pública
+    ///     (`NSUbiquitousContainers`), ou `nil` para guardar só no aparelho.
+    ///   - pasta: onde gravar no aparelho; `nil` usa `Application Support/CaixaPreta`.
+    public static func ligar(app: String, containerDoICloud: String?, pasta: URL? = nil) {
+        ligada.trocar { atual in
+            guard atual == nil else { return atual }
+            let pasta = pasta ?? URL.applicationSupportDirectory.appending(path: "CaixaPreta", directoryHint: .isDirectory)
+            let espelho = containerDoICloud.map { id in
+                Espelho(acharRaiz: { FileManager.default.url(forUbiquityContainerIdentifier: id) })
+            }
+            let caixa = Caixa(pasta: pasta, ambiente: .doAparelho(app: app), espelho: espelho)
+            caixa.comecar()
+            #if os(iOS)
+            Ligacao.ligar(caixa)
+            #endif
+            return caixa
+        }
+    }
+
     /// Anota um evento. Não bloqueia; pode ser chamada de qualquer thread.
     /// O filtro de privacidade recusa o que não for código técnico, e no
     /// lugar entra `caixa.recusado`. Sem `ligar`, só a captura dos testes vê.
