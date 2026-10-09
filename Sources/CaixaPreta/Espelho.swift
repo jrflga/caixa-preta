@@ -49,6 +49,8 @@ final class Espelho: @unchecked Sendable {
         }
     }
 
+    func cancelar() {}
+
     /// Espera a cópia em andamento. Para os testes e para a caixa.
     func esperar() {
         fila.sync {}

@@ -38,6 +38,28 @@ struct ComandoTests {
         #expect(resultado.saida == "Exemplo · aparelho abcd1234-iPhone15,4\n09/10 14:35:00 \(caixa.uso) teste.tarde n=2\n")
     }
 
+    @Test("o resumo de hoje mostra o uso que fechou de ontem para hoje, e não os de antes")
+    func usoDaVirada() {
+        let raiz = pastaTemporaria()
+        let pasta = raiz.appending(path: "iCloud~app~exemplo/Documents/CaixaPreta/abcd1234-iPhone15,4", directoryHint: .isDirectory)
+        let relogio = Relogio(hora("2026-10-08T10:00:00-03:00"))
+        let cedo = caixaDeTeste(pasta: pasta, relogio: relogio)
+        cedo.esperar()
+        relogio.avancar(12 * 3600)
+        let noite = caixaDeTeste(pasta: pasta, relogio: relogio)
+        noite.mudouDeEstado("fundo")
+        noite.esperar()
+        relogio.avancar(10 * 3600)
+        let manha = caixaDeTeste(pasta: pasta, relogio: relogio)
+        manha.esperar()
+        let resultado = rodar(["resumo", "Exemplo"], contexto(raiz: raiz))
+        #expect(resultado.codigo == 0)
+        #expect(resultado.saida.contains("Uso \(noite.uso) · 08/10 22:00:00"), "\(resultado.saida)")
+        #expect(resultado.saida.contains("Como terminou: fechado no fundo (normal no iOS); abriu de novo 10 h depois"))
+        #expect(resultado.saida.contains("Uso \(manha.uso) · 09/10 08:00:00"))
+        #expect(!resultado.saida.contains(cedo.uso))
+    }
+
     @Test("resumo pelo arquivo enviado")
     func resumoDoArquivo() async throws {
         let caixa = caixaDeTeste(pasta: pastaTemporaria(), relogio: Relogio(hora("2026-10-09T14:20:00-03:00")))
