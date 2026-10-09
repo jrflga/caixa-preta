@@ -2,17 +2,19 @@
 import PackageDescription
 
 // CaixaPretaFormato: evento, filtro e formato do arquivo (iOS e Mac).
-// CaixaPreta: o que o app liga. CaixaPretaLeitor: a leitura no Mac.
+// CaixaPreta: o que o app liga. CaixaPretaLeitor e caixa-preta: a leitura no Mac.
 let package = Package(
     name: "caixa-preta",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "CaixaPreta", targets: ["CaixaPreta"]),
+        .executable(name: "caixa-preta", targets: ["caixa-preta"]),
     ],
     targets: [
         .target(name: "CaixaPretaFormato"),
         .target(name: "CaixaPreta", dependencies: ["CaixaPretaFormato"]),
         .target(name: "CaixaPretaLeitor", dependencies: ["CaixaPretaFormato"]),
+        .executableTarget(name: "caixa-preta", dependencies: ["CaixaPretaLeitor"]),
         .target(name: "ApoioDosTestes", path: "Tests/ApoioDosTestes"),
         .testTarget(name: "CaixaPretaFormatoTests", dependencies: ["CaixaPretaFormato", "ApoioDosTestes"]),
         .testTarget(name: "CaixaPretaTests", dependencies: ["CaixaPreta", "ApoioDosTestes"]),
