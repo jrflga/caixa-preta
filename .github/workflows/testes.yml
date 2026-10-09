@@ -1,0 +1,19 @@
+# Roda no GitHub, não no Mac de quem programa: o repositório é público, e o
+# Mac do Actions sai de graça.
+name: Testes
+
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testes do pacote
+        run: swift test
+      - name: Biblioteca compilada para iOS
+        run: xcodebuild build -scheme CaixaPreta -destination 'generic/platform=iOS' -derivedDataPath .build/xcode -quiet
