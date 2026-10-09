@@ -119,6 +119,32 @@ final class Caixa: @unchecked Sendable {
         fila.async { [self] in medir(ambiente.memoriaEmMB(), hora: agora) }
     }
 
+    /// Um relatório de diagnóstico do MetricKit (`jsonRepresentation()`):
+    /// guarda o JSON cru e anota uma `ios.falha` por diagnóstico. O mesmo
+    /// relatório de novo não grava nada.
+    func receberDiagnostico(_ json: Data) {
+        fila.async { [self] in
+            let agora = ambiente.agora()
+            let falhas = LeituraDoMetricKit.falhas(json)
+            guard !falhas.isEmpty, let relatorio = diario.guardarRelatorio(json, tipo: "diagnostico", hoje: agora) else { return }
+            for var campos in falhas {
+                campos["relatorio"] = .texto(relatorio)
+                gravar("ios.falha", campos, hora: agora)
+            }
+        }
+    }
+
+    /// O relatório diário do MetricKit: anota as contagens de fechamento.
+    func receberMetricas(_ json: Data) {
+        fila.async { [self] in
+            let agora = ambiente.agora()
+            guard let campos = LeituraDoMetricKit.fechamentos(json),
+                  diario.guardarRelatorio(json, tipo: "metricas", hoje: agora) != nil
+            else { return }
+            gravar("ios.fechamentos", campos, hora: agora)
+        }
+    }
+
     /// Espera a fila terminar o que já recebeu. Para os testes.
     func esperar() {
         fila.sync {}
